@@ -94,7 +94,7 @@
 #include <inttypes.h>
 
 #include <assert.h>
-#include "mir-gen-memctl.h"
+#include "mir-code-alloc.h"
 #include "mir-alloc.h"
 
 #define gen_assert(cond) assert (cond)

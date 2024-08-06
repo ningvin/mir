@@ -3,7 +3,7 @@
 */
 
 #include "mir.h"
-#include "mir-gen-memctl.h"
+#include "mir-code-alloc.h"
 
 DEF_VARR (MIR_insn_t);
 DEF_VARR (MIR_reg_t);
@@ -33,7 +33,7 @@ struct MIR_context {
   struct c2mir_ctx *c2mir_ctx; /* should be the 2nd member */
   MIR_error_func_t error_func;
   MIR_alloc_t alloc;
-  MIR_gen_memctl_t gen_memctl;
+  MIR_code_alloc_t code_alloc;
   int func_redef_permission_p;        /* when true loaded func can be redfined lately */
   VARR (size_t) * insn_nops;          /* constant after initialization */
   VARR (MIR_proto_t) * unspec_protos; /* protos of unspec insns (set only during initialization) */
@@ -728,15 +728,15 @@ static void hard_reg_name_init (MIR_context_t ctx);
 static void hard_reg_name_finish (MIR_context_t ctx);
 
 #include "mir-alloc-default.c"
-#include "mir-gen-memctl-default.c"
+#include "mir-code-alloc-default.c"
 
-MIR_context_t _MIR_init (MIR_alloc_t alloc, MIR_gen_memctl_t gen_memctl) {
+MIR_context_t _MIR_init (MIR_alloc_t alloc, MIR_code_alloc_t code_alloc) {
   MIR_context_t ctx;
 
   if (alloc == NULL)
     alloc = &default_alloc;
-  if (gen_memctl == NULL)
-    gen_memctl = &default_gen_memctl;
+  if (code_alloc == NULL)
+    code_alloc = &default_code_alloc;
 
   mir_assert (MIR_OP_BOUND < OUT_FLAG);
   if ((ctx = MIR_malloc (alloc, sizeof (struct MIR_context))) == NULL)
@@ -754,7 +754,7 @@ MIR_context_t _MIR_init (MIR_alloc_t alloc, MIR_gen_memctl_t gen_memctl) {
   for (MIR_insn_code_t c = 0; c < MIR_INVALID_INSN; c++) mir_assert (c == insn_descs[c].code);
 #endif
   ctx->alloc = alloc;
-  ctx->gen_memctl = gen_memctl;
+  ctx->code_alloc = code_alloc;
   error_func = default_error;
   func_redef_permission_p = FALSE;
   curr_module = NULL;
@@ -4378,7 +4378,7 @@ static code_holder_t *get_last_code_holder (MIR_context_t ctx, size_t size) {
   }
   npages = (size + page_size) / page_size;
   len = page_size * npages;
-  mem = (uint8_t *) MIR_mem_map (ctx->gen_memctl, len);
+  mem = (uint8_t *) MIR_mem_map (ctx->code_alloc, len);
   if (mem == MAP_FAILED) return NULL;
   ch.start = mem;
   ch.free = mem;
@@ -4395,17 +4395,17 @@ void _MIR_flush_code_cache (void *start, void *bound) {
 }
 
 #if !defined(MIR_BOOTSTRAP) || !defined(__APPLE__) || !defined(__aarch64__)
-void _MIR_set_code (MIR_gen_memctl_t gen_memctl, size_t prot_start, size_t prot_len,
+void _MIR_set_code (MIR_code_alloc_t code_alloc, size_t prot_start, size_t prot_len,
                     uint8_t *base, size_t nloc, const MIR_code_reloc_t *relocs,
                     size_t reloc_size) {
-  MIR_mem_protect (gen_memctl, (uint8_t *) prot_start, prot_len, PROT_WRITE_EXEC);
+  MIR_mem_protect (code_alloc, (uint8_t *) prot_start, prot_len, PROT_WRITE_EXEC);
   if (reloc_size == 0) {
     for (size_t i = 0; i < nloc; i++)
       memcpy (base + relocs[i].offset, &relocs[i].value, sizeof (void *));
   } else {
     for (size_t i = 0; i < nloc; i++) memcpy (base + relocs[i].offset, relocs[i].value, reloc_size);
   }
-  MIR_mem_protect (gen_memctl, (uint8_t *) prot_start, prot_len, PROT_READ_EXEC);
+  MIR_mem_protect (code_alloc, (uint8_t *) prot_start, prot_len, PROT_READ_EXEC);
 }
 #endif
 
@@ -4418,7 +4418,7 @@ static uint8_t *add_code (MIR_context_t ctx MIR_UNUSED, code_holder_t *ch_ptr, c
   MIR_code_reloc_t reloc;
   reloc.offset = 0;
   reloc.value = code;
-  _MIR_set_code (ctx->gen_memctl, (size_t) ch_ptr->start, ch_ptr->bound - ch_ptr->start, mem, 1, &reloc, code_len);
+  _MIR_set_code (ctx->code_alloc, (size_t) ch_ptr->start, ch_ptr->bound - ch_ptr->start, mem, 1, &reloc, code_len);
   _MIR_flush_code_cache (mem, ch_ptr->free);
   return mem;
 }
@@ -4452,7 +4452,7 @@ void _MIR_change_code (MIR_context_t ctx, uint8_t *addr, const uint8_t *code,
   len = (size_t) addr + code_len - start;
   reloc.offset = 0;
   reloc.value = code;
-  _MIR_set_code (ctx->gen_memctl, start, len, addr, 1, &reloc, code_len);
+  _MIR_set_code (ctx->code_alloc, start, len, addr, 1, &reloc, code_len);
   _MIR_flush_code_cache (addr, addr + code_len);
 }
 
@@ -4465,7 +4465,7 @@ void _MIR_update_code_arr (MIR_context_t ctx, uint8_t *base, size_t nloc,
     if (max_offset < relocs[i].offset) max_offset = relocs[i].offset;
   start = (size_t) base / page_size * page_size;
   len = (size_t) base + max_offset + sizeof (void *) - start;
-  _MIR_set_code (ctx->gen_memctl, start, len, base, nloc, relocs, 0);
+  _MIR_set_code (ctx->code_alloc, start, len, base, nloc, relocs, 0);
   _MIR_flush_code_cache (base, base + max_offset + sizeof (void *));
 }
 
@@ -4499,7 +4499,7 @@ static void code_init (MIR_context_t ctx) {
 static void code_finish (MIR_context_t ctx) {
   while (VARR_LENGTH (code_holder_t, code_holders) != 0) {
     code_holder_t ch = VARR_POP (code_holder_t, code_holders);
-    MIR_mem_unmap (ctx->gen_memctl, ch.start, ch.bound - ch.start);
+    MIR_mem_unmap (ctx->code_alloc, ch.start, ch.bound - ch.start);
   }
   VARR_DESTROY (code_holder_t, code_holders);
   MIR_free (ctx->alloc, ctx->machine_code_ctx);
