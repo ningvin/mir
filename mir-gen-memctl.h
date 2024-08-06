@@ -22,19 +22,19 @@ typedef struct MIR_gen_memctl {
   void *(*mem_map) (size_t, void *);
   int (*mem_unmap) (void *, size_t, void *);
   int (*mem_protect) (void *, size_t, MIR_mem_protect_t, void *);
-  void *memory_data;
+  void *user_data;
 } *MIR_gen_memctl_t;
 
 static inline void *MIR_mem_map (MIR_gen_memctl_t memctl, size_t len) {
-  return memctl->mem_map (len, memctl->memory_data);
+  return memctl->mem_map (len, memctl->user_data);
 }
 
 static inline int MIR_mem_unmap (MIR_gen_memctl_t memctl, void *addr, size_t len) {
-  return memctl->mem_unmap (addr, len, memctl->memory_data);
+  return memctl->mem_unmap (addr, len, memctl->user_data);
 }
 
 static inline int MIR_mem_protect (MIR_gen_memctl_t memctl, void *addr, size_t len, MIR_mem_protect_t prot) {
-  return memctl->mem_protect (addr, len, prot, memctl->memory_data);
+  return memctl->mem_protect (addr, len, prot, memctl->user_data);
 }
 
 #ifdef __cplusplus

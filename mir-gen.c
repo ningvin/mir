@@ -95,7 +95,7 @@
 
 #include <assert.h>
 #include "mir-gen-memctl.h"
-#include "mir-memctl.h"
+#include "mir-alloc.h"
 
 #define gen_assert(cond) assert (cond)
 
@@ -114,7 +114,7 @@ static void varr_error (const char *message) { util_error (NULL, message); }
 #include "mir-gen.h"
 
 /* Functions used by target dependent code: */
-static MIR_memctl_t get_memctl (gen_ctx_t gen_ctx);
+static MIR_alloc_t gen_alloc (gen_ctx_t gen_ctx);
 static void *gen_malloc (gen_ctx_t gen_ctx, size_t size);
 static void gen_free (gen_ctx_t gen_ctx, void *ptr);
 static MIR_reg_t gen_new_temp_reg (gen_ctx_t gen_ctx, MIR_type_t type, MIR_func_t func);
@@ -358,20 +358,20 @@ static void MIR_NO_RETURN util_error (gen_ctx_t gen_ctx, const char *message) {
   (*MIR_get_error_func (gen_ctx->ctx)) (MIR_alloc_error, message);
 }
 
-static MIR_memctl_t get_memctl (gen_ctx_t gen_ctx) {
-  return MIR_get_memctl (gen_ctx->ctx);
+static MIR_alloc_t gen_alloc (gen_ctx_t gen_ctx) {
+  return MIR_get_alloc (gen_ctx->ctx);
 }
 
 static void *gen_malloc (gen_ctx_t gen_ctx, size_t size) {
-  MIR_memctl_t memctl = MIR_get_memctl (gen_ctx->ctx);
-  void *res = MIR_malloc (memctl, size);
+  MIR_alloc_t alloc = MIR_get_alloc (gen_ctx->ctx);
+  void *res = MIR_malloc (alloc, size);
   if (res == NULL) util_error (gen_ctx, "no memory");
   return res;
 }
 
 static void gen_free (gen_ctx_t gen_ctx, void *ptr) {
-  MIR_memctl_t memctl = get_memctl (gen_ctx);
-  MIR_free (memctl, ptr);
+  MIR_alloc_t alloc = gen_alloc (gen_ctx);
+  MIR_free (alloc, ptr);
 }
 
 static void *gen_malloc_and_mark_to_free (gen_ctx_t gen_ctx, size_t size) {
@@ -611,7 +611,7 @@ static void delete_insn_data (gen_ctx_t gen_ctx, MIR_insn_t insn) {
 
 static bb_insn_t create_bb_insn (gen_ctx_t gen_ctx, MIR_insn_t insn, bb_t bb) {
   bb_insn_t bb_insn = gen_malloc (gen_ctx, sizeof (struct bb_insn));
-  MIR_memctl_t memctl = get_memctl (gen_ctx);
+  MIR_alloc_t alloc = gen_alloc (gen_ctx);
 
   insn->data = bb_insn;
   bb_insn->bb = bb;
@@ -625,7 +625,7 @@ static bb_insn_t create_bb_insn (gen_ctx_t gen_ctx, MIR_insn_t insn, bb_t bb) {
   bb_insn->gvn_val = bb_insn->index;
   DLIST_INIT (dead_var_t, bb_insn->insn_dead_vars);
   if (MIR_call_code_p (insn->code))
-    bb_insn->call_hard_reg_args = bitmap_create2 (memctl, MAX_HARD_REG + 1);
+    bb_insn->call_hard_reg_args = bitmap_create2 (alloc, MAX_HARD_REG + 1);
   bb_insn->label_disp = 0;
   return bb_insn;
 }
@@ -731,7 +731,7 @@ static void gen_move_insn_before (gen_ctx_t gen_ctx, MIR_insn_t before, MIR_insn
 
 static void MIR_UNUSED setup_call_hard_reg_args (gen_ctx_t gen_ctx, MIR_insn_t call_insn,
                                                  MIR_reg_t hard_reg) {
-  MIR_memctl_t memctl = get_memctl (gen_ctx);
+  MIR_alloc_t alloc = gen_alloc (gen_ctx);
   insn_data_t insn_data;
 
   gen_assert (MIR_call_code_p (call_insn->code) && hard_reg <= MAX_HARD_REG);
@@ -740,7 +740,7 @@ static void MIR_UNUSED setup_call_hard_reg_args (gen_ctx_t gen_ctx, MIR_insn_t c
     return;
   }
   if ((insn_data = call_insn->data)->u.call_hard_reg_args == NULL)
-    insn_data->u.call_hard_reg_args = (void *) bitmap_create2 (memctl, MAX_HARD_REG + 1);
+    insn_data->u.call_hard_reg_args = (void *) bitmap_create2 (alloc, MAX_HARD_REG + 1);
   bitmap_set_bit_p (insn_data->u.call_hard_reg_args, hard_reg);
 }
 
@@ -806,7 +806,7 @@ static MIR_reg_t get_temp_hard_reg (MIR_type_t type, int first_p) {
 
 static bb_t create_bb (gen_ctx_t gen_ctx, MIR_insn_t insn) {
   bb_t bb = gen_malloc (gen_ctx, sizeof (struct bb));
-  MIR_memctl_t memctl = get_memctl (gen_ctx);
+  MIR_alloc_t alloc = gen_alloc (gen_ctx);
 
   bb->pre = bb->rpost = bb->bfs = 0;
   bb->loop_node = NULL;
@@ -814,12 +814,12 @@ static bb_t create_bb (gen_ctx_t gen_ctx, MIR_insn_t insn) {
   DLIST_INIT (in_edge_t, bb->in_edges);
   DLIST_INIT (out_edge_t, bb->out_edges);
   bb->call_p = bb->flag = bb->reachable_p = FALSE;
-  bb->in = bitmap_create2 (memctl, DEFAULT_INIT_BITMAP_BITS_NUM);
-  bb->out = bitmap_create2 (memctl, DEFAULT_INIT_BITMAP_BITS_NUM);
-  bb->gen = bitmap_create2 (memctl, DEFAULT_INIT_BITMAP_BITS_NUM);
-  bb->kill = bitmap_create2 (memctl, DEFAULT_INIT_BITMAP_BITS_NUM);
-  bb->dom_in = bitmap_create2 (memctl, DEFAULT_INIT_BITMAP_BITS_NUM);
-  bb->dom_out = bitmap_create2 (memctl, DEFAULT_INIT_BITMAP_BITS_NUM);
+  bb->in = bitmap_create2 (alloc, DEFAULT_INIT_BITMAP_BITS_NUM);
+  bb->out = bitmap_create2 (alloc, DEFAULT_INIT_BITMAP_BITS_NUM);
+  bb->gen = bitmap_create2 (alloc, DEFAULT_INIT_BITMAP_BITS_NUM);
+  bb->kill = bitmap_create2 (alloc, DEFAULT_INIT_BITMAP_BITS_NUM);
+  bb->dom_in = bitmap_create2 (alloc, DEFAULT_INIT_BITMAP_BITS_NUM);
+  bb->dom_out = bitmap_create2 (alloc, DEFAULT_INIT_BITMAP_BITS_NUM);
   bb->max_int_pressure = bb->max_fp_pressure = 0;
   if (insn != NULL) {
     if (optimize_level == 0)
@@ -877,7 +877,7 @@ static edge_t find_edge (bb_t src, bb_t dst) {
 }
 
 static void delete_bb (gen_ctx_t gen_ctx, bb_t bb) {
-  MIR_memctl_t memctl = get_memctl (gen_ctx);
+  MIR_alloc_t alloc = gen_alloc (gen_ctx);
   edge_t e, next_e;
 
   for (e = DLIST_HEAD (out_edge_t, bb->out_edges); e != NULL; e = next_e) {
@@ -1569,7 +1569,7 @@ static int label_cmp (const void *l1, const void *l2) {
 }
 
 static void build_func_cfg (gen_ctx_t gen_ctx) {
-  MIR_memctl_t memctl = get_memctl (gen_ctx);
+  MIR_alloc_t alloc = gen_alloc (gen_ctx);
   MIR_context_t ctx = gen_ctx->ctx;
   MIR_func_t func = curr_func_item->u.func;
   MIR_insn_t insn, insn2, next_insn, ret_insn, use_insn;
@@ -1882,8 +1882,8 @@ static void build_func_cfg (gen_ctx_t gen_ctx) {
       create_edge (gen_ctx, bb, exit_bb, FALSE, TRUE);
   }
   enumerate_bbs (gen_ctx);
-  VARR_CREATE (reg_info_t, curr_cfg->reg_info, memctl, 128);
-  curr_cfg->call_crossed_regs = bitmap_create2 (memctl, curr_cfg->max_var);
+  VARR_CREATE (reg_info_t, curr_cfg->reg_info, alloc, 128);
+  curr_cfg->call_crossed_regs = bitmap_create2 (alloc, curr_cfg->max_var);
 }
 
 static void destroy_func_cfg (gen_ctx_t gen_ctx) {
@@ -1981,11 +1981,11 @@ static void solve_dataflow (gen_ctx_t gen_ctx, int forward_p, void (*con_func_0)
 }
 
 static void init_data_flow (gen_ctx_t gen_ctx) {
-  MIR_memctl_t memctl = get_memctl (gen_ctx);
+  MIR_alloc_t alloc = gen_alloc (gen_ctx);
   gen_ctx->data_flow_ctx = gen_malloc (gen_ctx, sizeof (struct data_flow_ctx));
-  VARR_CREATE (bb_t, worklist, memctl, 0);
-  VARR_CREATE (bb_t, pending, memctl, 0);
-  bb_to_consider = bitmap_create2 (memctl, 512);
+  VARR_CREATE (bb_t, worklist, alloc, 0);
+  VARR_CREATE (bb_t, pending, alloc, 0);
+  bb_to_consider = bitmap_create2 (alloc, 512);
 }
 
 static void finish_data_flow (gen_ctx_t gen_ctx) {
@@ -2821,16 +2821,16 @@ static void undo_build_ssa (gen_ctx_t gen_ctx) {
 }
 
 static void init_ssa (gen_ctx_t gen_ctx) {
-  MIR_memctl_t memctl = get_memctl (gen_ctx);
+  MIR_alloc_t alloc = gen_alloc (gen_ctx);
   gen_ctx->ssa_ctx = gen_malloc (gen_ctx, sizeof (struct ssa_ctx));
-  VARR_CREATE (bb_insn_t, arg_bb_insns, memctl, 0);
-  VARR_CREATE (bb_insn_t, undef_insns, memctl, 0);
-  VARR_CREATE (bb_insn_t, phis, memctl, 0);
-  VARR_CREATE (bb_insn_t, deleted_phis, memctl, 0);
-  HTAB_CREATE (def_tab_el_t, def_tab, memctl, 1024, def_tab_el_hash, def_tab_el_eq, gen_ctx);
-  VARR_CREATE (ssa_edge_t, ssa_edges_to_process, memctl, 512);
-  VARR_CREATE (size_t, curr_reg_indexes, memctl, 4096);
-  VARR_CREATE (char, reg_name, memctl, 20);
+  VARR_CREATE (bb_insn_t, arg_bb_insns, alloc, 0);
+  VARR_CREATE (bb_insn_t, undef_insns, alloc, 0);
+  VARR_CREATE (bb_insn_t, phis, alloc, 0);
+  VARR_CREATE (bb_insn_t, deleted_phis, alloc, 0);
+  HTAB_CREATE (def_tab_el_t, def_tab, alloc, 1024, def_tab_el_hash, def_tab_el_eq, gen_ctx);
+  VARR_CREATE (ssa_edge_t, ssa_edges_to_process, alloc, 512);
+  VARR_CREATE (size_t, curr_reg_indexes, alloc, 4096);
+  VARR_CREATE (char, reg_name, alloc, 20);
 }
 
 static void finish_ssa (gen_ctx_t gen_ctx) {
@@ -4931,19 +4931,19 @@ static void gvn_clear (gen_ctx_t gen_ctx) {
 }
 
 static void init_gvn (gen_ctx_t gen_ctx) {
-  MIR_memctl_t memctl = get_memctl (gen_ctx);
+  MIR_alloc_t alloc = gen_alloc (gen_ctx);
   MIR_context_t ctx = gen_ctx->ctx;
 
   gen_ctx->gvn_ctx = gen_malloc (gen_ctx, sizeof (struct gvn_ctx));
-  VARR_CREATE (expr_t, exprs, memctl, 512);
-  HTAB_CREATE (expr_t, expr_tab, memctl, 1024, expr_hash, expr_eq, gen_ctx);
+  VARR_CREATE (expr_t, exprs, alloc, 512);
+  HTAB_CREATE (expr_t, expr_tab, alloc, 1024, expr_hash, expr_eq, gen_ctx);
   temp_mem_insn
     = MIR_new_insn (ctx, MIR_MOV,
                     _MIR_new_var_mem_op (ctx, MIR_T_I64, 0, MIR_NON_VAR, MIR_NON_VAR, 0),
                     _MIR_new_var_op (ctx, 0));
-  VARR_CREATE (mem_expr_t, mem_exprs, memctl, 256);
-  HTAB_CREATE (mem_expr_t, mem_expr_tab, memctl, 512, mem_expr_hash, mem_expr_eq, gen_ctx);
-  VARR_CREATE (insn_nop_pair_t, insn_nop_pairs, memctl, 16);
+  VARR_CREATE (mem_expr_t, mem_exprs, alloc, 256);
+  HTAB_CREATE (mem_expr_t, mem_expr_tab, alloc, 512, mem_expr_hash, mem_expr_eq, gen_ctx);
+  VARR_CREATE (insn_nop_pair_t, insn_nop_pairs, alloc, 16);
 }
 
 static void finish_gvn (gen_ctx_t gen_ctx) {
@@ -6172,7 +6172,7 @@ static int consider_move_vars_only (gen_ctx_t gen_ctx) {
 }
 
 static void add_bb_insn_dead_vars (gen_ctx_t gen_ctx) {
-  MIR_memctl_t memctl = get_memctl (gen_ctx);
+  MIR_alloc_t alloc = gen_alloc (gen_ctx);
   MIR_insn_t insn;
   bb_insn_t bb_insn, prev_bb_insn;
   MIR_reg_t var, early_clobbered_hard_reg1, early_clobbered_hard_reg2;
@@ -6182,7 +6182,7 @@ static void add_bb_insn_dead_vars (gen_ctx_t gen_ctx) {
 
   /* we need all var analysis and bb insns to keep dead var info */
   gen_assert (optimize_level > 0);
-  live = bitmap_create2 (memctl, DEFAULT_INIT_BITMAP_BITS_NUM);
+  live = bitmap_create2 (alloc, DEFAULT_INIT_BITMAP_BITS_NUM);
   for (bb_t bb = DLIST_HEAD (bb_t, curr_cfg->bbs); bb != NULL; bb = DLIST_NEXT (bb_t, bb)) {
     bitmap_copy (live, bb->live_out);
     for (bb_insn = DLIST_TAIL (bb_insn_t, bb->bb_insns); bb_insn != NULL; bb_insn = prev_bb_insn) {
@@ -6601,19 +6601,19 @@ static void free_func_live_ranges (gen_ctx_t gen_ctx) {
 }
 
 static void init_live_ranges (gen_ctx_t gen_ctx) {
-  MIR_memctl_t memctl = get_memctl (gen_ctx);
+  MIR_alloc_t alloc = gen_alloc (gen_ctx);
   gen_ctx->lr_ctx = gen_malloc (gen_ctx, sizeof (struct lr_ctx));
-  VARR_CREATE (int, var_to_scan_var_map, memctl, 0);
-  VARR_CREATE (MIR_reg_t, scan_var_to_var_map, memctl, 0);
+  VARR_CREATE (int, var_to_scan_var_map, alloc, 0);
+  VARR_CREATE (MIR_reg_t, scan_var_to_var_map, alloc, 0);
   init_lr_bbs (gen_ctx);
   init_lrs (gen_ctx);
-  VARR_CREATE (live_range_t, var_live_ranges, memctl, 0);
-  VARR_CREATE (int, point_map, memctl, 1024);
-  live_vars = bitmap_create2 (memctl, DEFAULT_INIT_BITMAP_BITS_NUM);
-  referenced_vars = bitmap_create2 (memctl, DEFAULT_INIT_BITMAP_BITS_NUM);
-  points_with_born_vars = bitmap_create2 (memctl, DEFAULT_INIT_BITMAP_BITS_NUM);
-  points_with_dead_vars = bitmap_create2 (memctl, DEFAULT_INIT_BITMAP_BITS_NUM);
-  points_with_born_or_dead_vars = bitmap_create2 (memctl, DEFAULT_INIT_BITMAP_BITS_NUM);
+  VARR_CREATE (live_range_t, var_live_ranges, alloc, 0);
+  VARR_CREATE (int, point_map, alloc, 1024);
+  live_vars = bitmap_create2 (alloc, DEFAULT_INIT_BITMAP_BITS_NUM);
+  referenced_vars = bitmap_create2 (alloc, DEFAULT_INIT_BITMAP_BITS_NUM);
+  points_with_born_vars = bitmap_create2 (alloc, DEFAULT_INIT_BITMAP_BITS_NUM);
+  points_with_dead_vars = bitmap_create2 (alloc, DEFAULT_INIT_BITMAP_BITS_NUM);
+  points_with_born_or_dead_vars = bitmap_create2 (alloc, DEFAULT_INIT_BITMAP_BITS_NUM);
 }
 
 static void finish_live_ranges (gen_ctx_t gen_ctx) {
@@ -7048,12 +7048,12 @@ static void coalesce (gen_ctx_t gen_ctx) {
 #undef live_out
 
 static void init_coalesce (gen_ctx_t gen_ctx) {
-  MIR_memctl_t memctl = get_memctl (gen_ctx);
+  MIR_alloc_t alloc = gen_alloc (gen_ctx);
   gen_ctx->coalesce_ctx = gen_malloc (gen_ctx, sizeof (struct coalesce_ctx));
-  VARR_CREATE (mv_t, moves, memctl, 0);
-  VARR_CREATE (MIR_reg_t, first_coalesced_reg, memctl, 0);
-  VARR_CREATE (MIR_reg_t, next_coalesced_reg, memctl, 0);
-  conflict_matrix = bitmap_create (memctl);
+  VARR_CREATE (mv_t, moves, alloc, 0);
+  VARR_CREATE (MIR_reg_t, first_coalesced_reg, alloc, 0);
+  VARR_CREATE (MIR_reg_t, next_coalesced_reg, alloc, 0);
+  conflict_matrix = bitmap_create (alloc);
 }
 
 static void finish_coalesce (gen_ctx_t gen_ctx) {
@@ -7277,11 +7277,11 @@ static int lr_gap_eq (lr_gap_t el1, lr_gap_t el2, void *arg MIR_UNUSED) {
 
 static void insert_lr_gap (gen_ctx_t gen_ctx, int hreg, MIR_type_t type, MIR_reg_t reg,
                            live_range_t lr) {
-  MIR_memctl_t memctl = get_memctl (gen_ctx);
+  MIR_alloc_t alloc = gen_alloc (gen_ctx);
   lr_gap_t el = {hreg, type, reg, lr}, tab_el;
   gen_assert (lr->lr_bb != NULL);
   if (lr_gap_bitmaps[hreg] == NULL)
-    lr_gap_bitmaps[hreg] = bitmap_create2 (memctl, 3 * lr->start / 2);
+    lr_gap_bitmaps[hreg] = bitmap_create2 (alloc, 3 * lr->start / 2);
   bitmap_set_bit_p (lr_gap_bitmaps[hreg], lr->start);
   HTAB_DO (lr_gap_t, lr_gap_tab, el, HTAB_INSERT, tab_el);
 }
@@ -7306,9 +7306,9 @@ static inline int find_lr_gap (gen_ctx_t gen_ctx, int hreg, int point, lr_gap_t 
 }
 
 static void init_lr_gap_tab (gen_ctx_t gen_ctx) {
-  MIR_memctl_t memctl = get_memctl (gen_ctx);
+  MIR_alloc_t alloc = gen_alloc (gen_ctx);
   for (int i = 0; i <= MAX_HARD_REG; i++) lr_gap_bitmaps[i] = NULL;
-  HTAB_CREATE (lr_gap_t, lr_gap_tab, memctl, 1024, lr_gap_hash, lr_gap_eq, NULL);
+  HTAB_CREATE (lr_gap_t, lr_gap_tab, alloc, 1024, lr_gap_hash, lr_gap_eq, NULL);
 }
 
 static void finish_lr_gap_tab (gen_ctx_t gen_ctx) {
@@ -7549,7 +7549,7 @@ static MIR_reg_t get_stack_loc (gen_ctx_t gen_ctx, MIR_reg_t start_loc, MIR_type
 #define ONLY_SIMPLIFIED_RA FALSE
 
 static void assign (gen_ctx_t gen_ctx) {
-  MIR_memctl_t memctl = get_memctl (gen_ctx);
+  MIR_alloc_t alloc = gen_alloc (gen_ctx);
   MIR_context_t ctx = gen_ctx->ctx;
   MIR_reg_t best_loc, i, reg, var, max_var = get_max_var (gen_ctx);
   MIR_type_t type;
@@ -7605,11 +7605,11 @@ static void assign (gen_ctx_t gen_ctx) {
       if (!simplified_p) bitmap_copy (VARR_GET (bitmap_t, busy_used_locs, n), global_hard_regs);
     }
   while ((int) VARR_LENGTH (bitmap_t, used_locs) <= curr_point) {
-    bm = bitmap_create2 (memctl, MAX_HARD_REG + 1);
+    bm = bitmap_create2 (alloc, MAX_HARD_REG + 1);
     if (global_hard_regs != NULL) bitmap_copy (bm, global_hard_regs);
     VARR_PUSH (bitmap_t, used_locs, bm);
     if (!simplified_p) {
-      bm = bitmap_create2 (memctl, MAX_HARD_REG + 1);
+      bm = bitmap_create2 (alloc, MAX_HARD_REG + 1);
       if (global_hard_regs != NULL) bitmap_copy (bm, global_hard_regs);
       VARR_PUSH (bitmap_t, busy_used_locs, bm);
     }
@@ -8548,20 +8548,20 @@ static void reg_alloc (gen_ctx_t gen_ctx) {
 }
 
 static void init_ra (gen_ctx_t gen_ctx) {
-  MIR_memctl_t memctl = get_memctl (gen_ctx);
+  MIR_alloc_t alloc = gen_alloc (gen_ctx);
   gen_ctx->ra_ctx = gen_malloc (gen_ctx, sizeof (struct ra_ctx));
-  VARR_CREATE (MIR_reg_t, reg_renumber, memctl, 0);
-  VARR_CREATE (allocno_info_t, sorted_regs, memctl, 0);
-  VARR_CREATE (bitmap_t, used_locs, memctl, 0);
-  VARR_CREATE (bitmap_t, busy_used_locs, memctl, 0);
-  VARR_CREATE (bitmap_t, var_bbs, memctl, 0);
-  VARR_CREATE (lr_gap_t, spill_gaps, memctl, 0);
-  VARR_CREATE (lr_gap_t, curr_gaps, memctl, 0);
-  VARR_CREATE (spill_el_t, spill_els, memctl, 0);
+  VARR_CREATE (MIR_reg_t, reg_renumber, alloc, 0);
+  VARR_CREATE (allocno_info_t, sorted_regs, alloc, 0);
+  VARR_CREATE (bitmap_t, used_locs, alloc, 0);
+  VARR_CREATE (bitmap_t, busy_used_locs, alloc, 0);
+  VARR_CREATE (bitmap_t, var_bbs, alloc, 0);
+  VARR_CREATE (lr_gap_t, spill_gaps, alloc, 0);
+  VARR_CREATE (lr_gap_t, curr_gaps, alloc, 0);
+  VARR_CREATE (spill_el_t, spill_els, alloc, 0);
   init_lr_gap_tab (gen_ctx);
-  VARR_CREATE (spill_cache_el_t, spill_cache, memctl, 0);
+  VARR_CREATE (spill_cache_el_t, spill_cache, alloc, 0);
   spill_cache_age = 0;
-  conflict_locs1 = bitmap_create2 (memctl, 3 * MAX_HARD_REG / 2);
+  conflict_locs1 = bitmap_create2 (alloc, 3 * MAX_HARD_REG / 2);
 }
 
 static void finish_ra (gen_ctx_t gen_ctx) {
@@ -9138,15 +9138,15 @@ static void combine (gen_ctx_t gen_ctx, int no_property_p) {
 }
 
 static void init_combine (gen_ctx_t gen_ctx) {
-  MIR_memctl_t memctl = get_memctl (gen_ctx);
+  MIR_alloc_t alloc = gen_alloc (gen_ctx);
   gen_ctx->combine_ctx = gen_malloc (gen_ctx, sizeof (struct combine_ctx));
   curr_bb_var_ref_age = 0;
-  VARR_CREATE (size_t, var_ref_ages, memctl, 0);
-  VARR_CREATE (var_ref_t, var_refs, memctl, 0);
-  VARR_CREATE (MIR_reg_t, insn_vars, memctl, 0);
-  VARR_CREATE (size_t, changed_op_numbers, memctl, 16);
-  VARR_CREATE (MIR_op_t, last_right_ops, memctl, 16);
-  vars_bitmap = bitmap_create (memctl);
+  VARR_CREATE (size_t, var_ref_ages, alloc, 0);
+  VARR_CREATE (var_ref_t, var_refs, alloc, 0);
+  VARR_CREATE (MIR_reg_t, insn_vars, alloc, 0);
+  VARR_CREATE (size_t, changed_op_numbers, alloc, 16);
+  VARR_CREATE (MIR_op_t, last_right_ops, alloc, 16);
+  vars_bitmap = bitmap_create (alloc);
 }
 
 static void finish_combine (gen_ctx_t gen_ctx) {
@@ -9177,7 +9177,7 @@ static void remove_property_insns (gen_ctx_t gen_ctx) {
 #define live_out out
 
 static void dead_code_elimination (gen_ctx_t gen_ctx) {
-  MIR_memctl_t memctl = get_memctl (gen_ctx);
+  MIR_alloc_t alloc = gen_alloc (gen_ctx);
   MIR_insn_t insn, nop_insn;
   bb_insn_t bb_insn, prev_bb_insn;
   MIR_reg_t var, early_clobbered_hard_reg1, early_clobbered_hard_reg2;
@@ -9190,7 +9190,7 @@ static void dead_code_elimination (gen_ctx_t gen_ctx) {
 
   gen_assert (optimize_level > 0);
   DEBUG (2, { fprintf (debug_file, "+++++++++++++Dead code elimination:\n"); });
-  live = bitmap_create2 (memctl, DEFAULT_INIT_BITMAP_BITS_NUM);
+  live = bitmap_create2 (alloc, DEFAULT_INIT_BITMAP_BITS_NUM);
   for (bb_t bb = DLIST_HEAD (bb_t, curr_cfg->bbs); bb != NULL; bb = DLIST_NEXT (bb_t, bb)) {
     bitmap_copy (live, bb->live_out);
     for (bb_insn = DLIST_TAIL (bb_insn_t, bb->bb_insns); bb_insn != NULL; bb_insn = prev_bb_insn) {
@@ -9630,13 +9630,11 @@ static void create_bb_stubs (gen_ctx_t gen_ctx) {
   }
 }
 
-#include "mir-gen-memctl-default.c"
-
 void MIR_gen_init (MIR_context_t ctx) {
-  MIR_memctl_t memctl = MIR_get_memctl (ctx);
+  MIR_alloc_t alloc = MIR_get_alloc (ctx);
   gen_ctx_t gen_ctx, *gen_ctx_ptr = gen_ctx_loc (ctx);
 
-  *gen_ctx_ptr = gen_ctx = MIR_malloc (memctl, sizeof (struct gen_ctx));
+  *gen_ctx_ptr = gen_ctx = MIR_malloc (alloc, sizeof (struct gen_ctx));
   if (gen_ctx == NULL) util_error (gen_ctx, "no memory");
 
   gen_ctx->ctx = ctx;
@@ -9651,24 +9649,24 @@ void MIR_gen_init (MIR_context_t ctx) {
   debug_file = NULL;
   debug_level = 100;
 #endif
-  VARR_CREATE (void_ptr_t, to_free, memctl, 0);
+  VARR_CREATE (void_ptr_t, to_free, alloc, 0);
   addr_insn_p = FALSE;
-  VARR_CREATE (MIR_op_t, temp_ops, memctl, 16);
-  VARR_CREATE (MIR_insn_t, temp_insns, memctl, 16);
-  VARR_CREATE (MIR_insn_t, temp_insns2, memctl, 16);
-  VARR_CREATE (bb_insn_t, temp_bb_insns, memctl, 16);
-  VARR_CREATE (bb_insn_t, temp_bb_insns2, memctl, 16);
-  VARR_CREATE (loop_node_t, loop_nodes, memctl, 32);
-  VARR_CREATE (loop_node_t, queue_nodes, memctl, 32);
-  VARR_CREATE (loop_node_t, loop_entries, memctl, 16);
-  VARR_CREATE (mem_attr_t, mem_attrs, memctl, 32);
-  VARR_CREATE (target_bb_version_t, target_succ_bb_versions, memctl, 16);
-  VARR_CREATE (void_ptr_t, succ_bb_addrs, memctl, 16);
-  VARR_CREATE (spot_attr_t, spot_attrs, memctl, 32);
-  VARR_CREATE (spot_attr_t, spot2attr, memctl, 32);
-  temp_bitmap = bitmap_create2 (memctl, DEFAULT_INIT_BITMAP_BITS_NUM);
-  temp_bitmap2 = bitmap_create2 (memctl, DEFAULT_INIT_BITMAP_BITS_NUM);
-  temp_bitmap3 = bitmap_create2 (memctl, DEFAULT_INIT_BITMAP_BITS_NUM);
+  VARR_CREATE (MIR_op_t, temp_ops, alloc, 16);
+  VARR_CREATE (MIR_insn_t, temp_insns, alloc, 16);
+  VARR_CREATE (MIR_insn_t, temp_insns2, alloc, 16);
+  VARR_CREATE (bb_insn_t, temp_bb_insns, alloc, 16);
+  VARR_CREATE (bb_insn_t, temp_bb_insns2, alloc, 16);
+  VARR_CREATE (loop_node_t, loop_nodes, alloc, 32);
+  VARR_CREATE (loop_node_t, queue_nodes, alloc, 32);
+  VARR_CREATE (loop_node_t, loop_entries, alloc, 16);
+  VARR_CREATE (mem_attr_t, mem_attrs, alloc, 32);
+  VARR_CREATE (target_bb_version_t, target_succ_bb_versions, alloc, 16);
+  VARR_CREATE (void_ptr_t, succ_bb_addrs, alloc, 16);
+  VARR_CREATE (spot_attr_t, spot_attrs, alloc, 32);
+  VARR_CREATE (spot_attr_t, spot2attr, alloc, 32);
+  temp_bitmap = bitmap_create2 (alloc, DEFAULT_INIT_BITMAP_BITS_NUM);
+  temp_bitmap2 = bitmap_create2 (alloc, DEFAULT_INIT_BITMAP_BITS_NUM);
+  temp_bitmap3 = bitmap_create2 (alloc, DEFAULT_INIT_BITMAP_BITS_NUM);
   init_dead_vars (gen_ctx);
   init_data_flow (gen_ctx);
   init_ssa (gen_ctx);
@@ -9684,16 +9682,16 @@ void MIR_gen_init (MIR_context_t ctx) {
     target_hard_reg_type_ok_p (i, MIR_T_I32) ? max_int_hard_regs++ : max_fp_hard_regs++;
   }
   for (MIR_type_t type = MIR_T_I8; type < MIR_T_BOUND; type++) {
-    call_used_hard_regs[type] = bitmap_create2 (memctl, MAX_HARD_REG + 1);
+    call_used_hard_regs[type] = bitmap_create2 (alloc, MAX_HARD_REG + 1);
     for (int i = 0; i <= MAX_HARD_REG; i++) {
       /* We need call_used_hard_regs even for fixed regs in combine. */
       if (target_call_used_hard_reg_p (i, type)) bitmap_set_bit_p (call_used_hard_regs[type], i);
     }
   }
-  tied_regs = bitmap_create2 (memctl, 256);
-  addr_regs = bitmap_create2 (memctl, 256);
-  insn_to_consider = bitmap_create2 (memctl, 1024);
-  func_used_hard_regs = bitmap_create2 (memctl, MAX_HARD_REG + 1);
+  tied_regs = bitmap_create2 (alloc, 256);
+  addr_regs = bitmap_create2 (alloc, 256);
+  insn_to_consider = bitmap_create2 (alloc, 1024);
+  func_used_hard_regs = bitmap_create2 (alloc, MAX_HARD_REG + 1);
   bb_wrapper = _MIR_get_bb_wrapper (ctx, gen_ctx, bb_version_generator);
   overall_bbs_num = overall_gen_bbs_num = 0;
 }

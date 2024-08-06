@@ -30,7 +30,7 @@ static inline int get_native_mem_protect_flags (MIR_mem_protect_t prot) {
 #include <pthread.h>
 #endif
 
-static int default_mem_protect (void *addr, size_t len, MIR_mem_protect_t prot, void *memory_data GEN_MEMCTL_UNUSED) {
+static int default_mem_protect (void *addr, size_t len, MIR_mem_protect_t prot, void *user_data GEN_MEMCTL_UNUSED) {
   int native_prot = get_native_mem_protect_flags (prot);
 #if !defined(__APPLE__) || !defined(__aarch64__)
   return mprotect (addr, len, native_prot);
@@ -51,11 +51,11 @@ static int default_mem_protect (void *addr, size_t len, MIR_mem_protect_t prot, 
 #endif
 }
 
-static int default_mem_unmap (void *addr, size_t len, void *memory_data GEN_MEMCTL_UNUSED) {
+static int default_mem_unmap (void *addr, size_t len, void *user_data GEN_MEMCTL_UNUSED) {
   return munmap (addr, len);
 }
 
-static void *default_mem_map (size_t len, void *memory_data GEN_MEMCTL_UNUSED) {
+static void *default_mem_map (size_t len, void *user_data GEN_MEMCTL_UNUSED) {
 #if defined(__APPLE__) && defined(__aarch64__)
   return mmap (NULL, len, PROT_EXEC | PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS | MAP_JIT,
                -1, 0);
@@ -67,17 +67,17 @@ static void *default_mem_map (size_t len, void *memory_data GEN_MEMCTL_UNUSED) {
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
-static int default_mem_protect (void *addr, size_t len, MIR_mem_protect_t prot, void *memory_data GEN_MEMCTL_UNUSED) {
+static int default_mem_protect (void *addr, size_t len, MIR_mem_protect_t prot, void *user_data GEN_MEMCTL_UNUSED) {
   int native_prod = prot == PROT_WRITE_EXEC ? PAGE_EXECUTE_READWRITE : PAGE_EXECUTE_READ;
   DWORD old_prot = 0;
   return VirtualProtect (addr, len, native_prod, &old_prot) ? 0 : -1;
 }
 
-static int default_mem_unmap (void *addr, size_t len, void *memory_data GEN_MEMCTL_UNUSED) {
+static int default_mem_unmap (void *addr, size_t len, void *user_data GEN_MEMCTL_UNUSED) {
   return VirtualFree (addr, len, MEM_RELEASE) ? 0 : -1;
 }
 
-static void *default_mem_map (size_t len, void *memory_data GEN_MEMCTL_UNUSED) {
+static void *default_mem_map (size_t len, void *user_data GEN_MEMCTL_UNUSED) {
   return VirtualAlloc (NULL, len, MEM_COMMIT, PAGE_EXECUTE);
 }
 #endif
@@ -86,5 +86,5 @@ static struct MIR_gen_memctl default_gen_memctl = {
   .mem_map = default_mem_map,
   .mem_unmap = default_mem_unmap,
   .mem_protect = default_mem_protect,
-  .memory_data = NULL
+  .user_data = NULL
 };

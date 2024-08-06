@@ -1,7 +1,7 @@
 #include "mir-htab.h"
-#include "mir-memctl.h"
+#include "mir-alloc.h"
 
-#include "mir-memctl-default.c"
+#include "mir-alloc-default.c"
 
 static int status = 1;
 
@@ -30,11 +30,11 @@ static void add (int i, void *arg) {
 
 
 int main (void) {
-  MIR_memctl_t memctl = &default_memctl;
+  MIR_alloc_t alloc = &default_alloc;
   int i, collisions, iter, tab_el;
   HTAB (int) * htab;
 
-  HTAB_CREATE_WITH_FREE_FUNC (int, htab, memctl, 4, hash, eq, f, ARG);
+  HTAB_CREATE_WITH_FREE_FUNC (int, htab, alloc, 4, hash, eq, f, ARG);
   status &= HTAB_ELS_NUM (int, htab) == 0;
   for (iter = 0; iter < 10; iter++) {
     for (i = 0; i < 100; i++) {

@@ -55,7 +55,7 @@ typedef pthread_attr_t mir_thread_attr_t;
 #include "mir-gen.h"
 #include "real-time.h"
 
-#include "mir-memctl-default.c"
+#include "mir-alloc-default.c"
 
 struct lib {
   char *name;
@@ -168,7 +168,7 @@ DEF_VARR (void_ptr_t);
 static VARR (void_ptr_t) * allocated;
 
 static void *reg_malloc (size_t s) {
-  void *res = MIR_malloc (&default_memctl, s);
+  void *res = MIR_malloc (&default_alloc, s);
 
   if (res == NULL) {
     fprintf (stderr, "c2m: no memory\n");
@@ -282,9 +282,9 @@ static void init_options (int argc, char *argv[]) {
   options.asm_p = options.object_p = options.no_prepro_p = options.prepro_only_p = FALSE;
   options.syntax_only_p = options.pedantic_p = FALSE;
   gen_debug_level = -1;
-  VARR_CREATE (char, temp_string, &default_memctl, 0);
-  VARR_CREATE (char_ptr_t, headers, &default_memctl, 0);
-  VARR_CREATE (macro_command_t, macro_commands, &default_memctl, 0);
+  VARR_CREATE (char, temp_string, &default_alloc, 0);
+  VARR_CREATE (char_ptr_t, headers, &default_alloc, 0);
+  VARR_CREATE (macro_command_t, macro_commands, &default_alloc, 0);
   optimize_level = -1;
   threads_num = 1;
   curr_input.code = NULL;
@@ -686,7 +686,7 @@ static void sort_modules (MIR_context_t ctx) {
   DLIST (MIR_module_t) *list = MIR_get_module_list (ctx);
   VARR (MIR_module_t) * modules;
 
-  VARR_CREATE (MIR_module_t, modules, &default_memctl, 16);
+  VARR_CREATE (MIR_module_t, modules, &default_alloc, 16);
   while ((module = DLIST_HEAD (MIR_module_t, *list)) != NULL) {
     DLIST_REMOVE (MIR_module_t, *list, module);
     VARR_PUSH (MIR_module_t, modules, module);
@@ -704,14 +704,14 @@ int main (int argc, char *argv[], char *env[]) {
   size_t len;
 
   interp_exec_p = gen_exec_p = lazy_gen_exec_p = lazy_bb_gen_exec_p = FALSE;
-  VARR_CREATE (void_ptr_t, allocated, &default_memctl, 100);
-  VARR_CREATE (char_ptr_t, source_file_names, &default_memctl, 32);
-  VARR_CREATE (char_ptr_t, exec_argv, &default_memctl, 32);
-  VARR_CREATE (lib_t, cmdline_libs, &default_memctl, 16);
-  VARR_CREATE (char_ptr_t, lib_dirs, &default_memctl, 16);
+  VARR_CREATE (void_ptr_t, allocated, &default_alloc, 100);
+  VARR_CREATE (char_ptr_t, source_file_names, &default_alloc, 32);
+  VARR_CREATE (char_ptr_t, exec_argv, &default_alloc, 32);
+  VARR_CREATE (lib_t, cmdline_libs, &default_alloc, 16);
+  VARR_CREATE (char_ptr_t, lib_dirs, &default_alloc, 16);
   for (size_t n = 0; n < sizeof (std_lib_dirs) / sizeof (char_ptr_t); n++)
     VARR_PUSH (char_ptr_t, lib_dirs, std_lib_dirs[n]);
-  VARR_CREATE (input_t, inputs_to_compile, &default_memctl, 32);
+  VARR_CREATE (input_t, inputs_to_compile, &default_alloc, 32);
   options.prepro_output_file = NULL;
   init_options (argc, argv);
   main_ctx = MIR_init ();
@@ -785,7 +785,7 @@ int main (int argc, char *argv[], char *env[]) {
         fprintf (stderr, "can not open %s -- goodbye\n", curr_input.input_name);
         exit (1);
       }
-      VARR_CREATE (uint8_t, curr_input.code_container, &default_memctl, 1000);
+      VARR_CREATE (uint8_t, curr_input.code_container, &default_alloc, 1000);
       while ((c = getc (f)) != EOF) VARR_PUSH (uint8_t, curr_input.code_container, c);
       curr_input.code_len = VARR_LENGTH (uint8_t, curr_input.code_container);
       VARR_PUSH (uint8_t, curr_input.code_container, 0);
@@ -949,7 +949,7 @@ int main (int argc, char *argv[], char *env[]) {
   VARR_DESTROY (char_ptr_t, exec_argv);
   VARR_DESTROY (input_t, inputs_to_compile);
   for (size_t n = 0; n < VARR_LENGTH (void_ptr_t, allocated); n++)
-    MIR_free (&default_memctl, VARR_GET (void_ptr_t, allocated, n));
+    MIR_free (&default_alloc, VARR_GET (void_ptr_t, allocated, n));
   VARR_DESTROY (void_ptr_t, allocated);
   return result_code;
 }

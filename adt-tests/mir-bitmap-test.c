@@ -1,17 +1,17 @@
 #include "mir-bitmap.h"
-#include "mir-memctl.h"
+#include "mir-alloc.h"
 
-#include "mir-memctl-default.c"
+#include "mir-alloc-default.c"
 
 int main (void) {
-  MIR_memctl_t memctl = &default_memctl;
+  MIR_alloc_t alloc = &default_alloc;
   int status;
   bitmap_t b1, b2, b3, b4;
 
-  b1 = bitmap_create (memctl);
-  b2 = bitmap_create (memctl);
-  b3 = bitmap_create (memctl);
-  b4 = bitmap_create (memctl);
+  b1 = bitmap_create (alloc);
+  b2 = bitmap_create (alloc);
+  b3 = bitmap_create (alloc);
+  b4 = bitmap_create (alloc);
   status = bitmap_empty_p (b1);
   status &= bitmap_bit_count (b1) == 0;
 
