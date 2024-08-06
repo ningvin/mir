@@ -1,13 +1,17 @@
+#include "mir-memctl.h"
 #include "mir-varr.h"
+
+#include "mir-memctl-default.c"
 
 DEF_VARR (int);
 int main (void) {
+  MIR_memctl_t memctl = &default_memctl;
   int status, elem;
   VARR (int) * test;
   size_t ind;
   int arr[] = {1, 2, 3};
 
-  VARR_CREATE (int, test, 0);
+  VARR_CREATE (int, test, memctl, 0);
   status = VARR_LENGTH (int, test) == 0;
   VARR_PUSH (int, test, 42);
   status &= VARR_LAST (int, test) == 42;

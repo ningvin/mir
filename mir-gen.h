@@ -7,6 +7,7 @@
 #define MIR_GEN_H
 
 #include "mir.h"
+#include "mir-gen-memctl.h"
 
 #ifndef MIR_NO_GEN_DEBUG
 #define MIR_NO_GEN_DEBUG 0
