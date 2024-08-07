@@ -54,7 +54,7 @@ Users intending to use custom allocators while calling MIR functions from differ
 
 ### Example
 
-The example uses some C++11/14 features, but can be easily adapted to work with older C++ standars.
+The example uses some C++11/14 features, but can be easily adapted to work with older C++ standards.
 
 ```cpp
 #include <cstddef>
@@ -157,6 +157,8 @@ The following sections are intended for contributors to MIR.
 Pointers to allocators are stored in fields `alloc` and `code_alloc` of struct `MIR_context`. These pointers are always valid, even if the user did not provide any or only some allocators explicitly (in this case, default allocators are used where needed).
 
 Passing the executable code allocator only to `MIR_gen_init` may seem conceptually more sound, but does not seem to work in practice as the interpreter relies on some of the code generation infrastructure as well.
+
+The vector implementation in [`mir-varr.h`](mir-varr.h) keeps an additional pointer to the allocator it was created with. While this slightly increases its memory footprint, the alternative (passing a `MIR_alloc_t` to each and every of its operations) made for a very verbose API.
 
 ### Executables shipped with MIR
 
