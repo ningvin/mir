@@ -20,13 +20,13 @@ The following sections are intended for users of MIR as a library. If you want t
 These functions should follow the same semantics as the standard C functions of the same name. This includes the platform's alignment guarantees.
 
 > [!IMPORTANT]
-> The `realloc` function required by `MIR_alloc` slightly differs from its standard C counter part in that it takes an additional parameter `old_size`, which denotes the size of the allocation `realloc` is invoked on.
+> The `realloc` function required by `MIR_alloc` slightly differs from its standard C counterpart in that it takes an additional parameter `old_size`, which denotes the size of the allocation `realloc` is invoked on.
 > This was introduced to support allocators that only provide `malloc` and `free` natively, e.g. `std::pmr::memory_resource` as shown in [the example below](#example).
 > Allocators that do support `realloc` out of the box can ignore this parameter or use it for validation purposes.
 
 Apart from the pointers and sizes one would expected, all functions additionally accept a `user_data` parameter. This can be used to pass additional context as outlined in [the example below](#example).
 
-> [!WARN]
+> [!WARNING]
 > The `MIR_alloc` instance passed to `MIR_init2` must have a lifetime greater or equal to the resulting `MIR_context`, i.e. live at least as long as the subsequent call to `MIR_finish`.
 > The `MIR_alloc` instance being destroyed or going out of scope beforehand may result in undefined behavior.
 
@@ -44,7 +44,7 @@ Similar to `MIR_alloc`, `MIR_code_alloc` lets users pass `user_data` to the diff
 
 MIR will not try to directly write to or execute memory returned by `mem_map`, but will instead call `mem_protect` with appropriate flags beforehand.
 
-> [!WARN]
+> [!WARNING]
 > The `MIR_code_alloc` instance passed to `MIR_init2` must have a lifetime greater or equal to the resulting `MIR_context`, i.e. live at least as long as the subsequent call to `MIR_finish`.
 > The `MIR_code_alloc` instance being destroyed or going out of scope beforehand may result in undefined behavior.
 
