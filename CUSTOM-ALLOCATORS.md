@@ -21,7 +21,7 @@ These functions should follow the same semantics as the standard C functions of 
 
 > [!IMPORTANT]
 > The `realloc` function required by `MIR_alloc` slightly differs from its standard C counterpart in that it takes an additional parameter `old_size`, which denotes the size of the allocation `realloc` is invoked on.
-> This was introduced to support allocators that only provide `malloc` and `free` natively, e.g. `std::pmr::memory_resource` as shown in [the example below](#example).
+> This was introduced to support allocators that do not provide `realloc` natively, as shown in [the example below](#example).
 > Allocators that do support `realloc` out of the box can ignore this parameter or use it for validation purposes.
 
 > [!IMPORTANT]
