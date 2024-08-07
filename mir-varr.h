@@ -131,7 +131,8 @@ static inline void MIR_VARR_NO_RETURN mir_varr_error (const char *message) {
     MIR_alloc_t alloc = varr->alloc;                                                          \
     if (varr->size < size) {                                                                  \
       size += size / 2;                                                                       \
-      varr->varr = (T *) MIR_realloc (alloc, varr->varr, sizeof (T) * size);                  \
+      varr->varr = (T *) MIR_realloc (alloc, varr->varr, sizeof (T) * varr->size,             \
+                                      sizeof (T) * size);                                     \
       varr->size = size;                                                                      \
       return 1;                                                                               \
     }                                                                                         \
@@ -142,7 +143,8 @@ static inline void MIR_VARR_NO_RETURN mir_varr_error (const char *message) {
     VARR_ASSERT (varr && varr->varr, "tailor", T);                                            \
     MIR_alloc_t alloc = varr->alloc;                                                          \
     if (varr->size != size)                                                                   \
-      varr->varr = (T *) MIR_realloc (alloc, varr->varr, sizeof (T) * size);                  \
+      varr->varr = (T *) MIR_realloc (alloc, varr->varr, sizeof (T) * varr->size,             \
+                                      sizeof (T) * size);                                     \
     varr->els_num = varr->size = size;                                                        \
   }                                                                                           \
                                                                                               \

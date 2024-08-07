@@ -24,6 +24,11 @@ These functions should follow the same semantics as the standard C functions of 
 > This was introduced to support allocators that only provide `malloc` and `free` natively, e.g. `std::pmr::memory_resource` as shown in [the example below](#example).
 > Allocators that do support `realloc` out of the box can ignore this parameter or use it for validation purposes.
 
+> [!IMPORTANT]
+> Some allocator implementations (such as `std::pmr::(un)synchronized_pool_resource` in libstd++ / libc++) require users to provide the exact size of the allocation to calls of their deallocation function.
+> This approach turns out to be largely infeasible for MIR as there are countless allocations whose size is dynamically determined, which would (in contrast to the `realloc` compromise outlined above) require a lot of additional bookkeeping on MIR's part.
+> Users wishing to use such an allocator with MIR may need to implement this additional bookkeeping themselves.
+
 Apart from the pointers and sizes one would expected, all functions additionally accept a `user_data` parameter. This can be used to pass additional context as outlined in [the example below](#example).
 
 > [!WARNING]
@@ -54,13 +59,14 @@ Users intending to use custom allocators while calling MIR functions from differ
 
 ### Example
 
-The example uses some C++11/14 features, but can be easily adapted to work with older C++ standards.
+This example showcases an approach to wrap a given stateful allocator interface, `my_allocator`, for use with MIR.
+
+It uses some C++11/14 features, but can be easily adapted to work with older C++ standards.
 
 ```cpp
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <memory_resource>
 
 #include "mir.h"
 
@@ -72,11 +78,19 @@ inline constexpr T align(T value, uint64_t alignment)
     return (T) ((((uint64_t) value) + alignment - 1) & ~(alignment - 1));
 }
 
+class my_allocator
+{
+public:
+    virtual ~my_allocator() = default;
+    void *allocate(size_t size) = 0;
+    void deallocate(void *ptr) = 0;
+};
+
 class context
 {
 public:
-    context(std::pmr::memory_resource& memory_resource)
-        : _memory_resource{memory_resource}
+    context(my_allocator &allocator)
+        : _allocator{allocator}
         , _mir_alloc{&context::do_malloc,
                      &context::do_calloc,
                      &context::do_realloc,
@@ -105,7 +119,7 @@ private:
     static void *do_malloc(size_t size, void *user_data)
     {
         auto &self = context_from_user_data(user_data);
-        return self._memory_resource.allocate(size);
+        return self._allocator.allocate(size);
     }
 
     static void *do_calloc(size_t num, size_t size, void *user_data)
@@ -113,7 +127,7 @@ private:
         auto &self = context_from_user_data(user_data);
         const size_t aligned_size = align(size, alignof(std::max_align_t));
         const size_t total_size = aligned_size * num;
-        void *const ptr = self._memory_resource.allocate(total_size);
+        void *const ptr = self._allocator.allocate(total_size);
         std::memset(ptr, 0, total_size);
         return ptr;
     }
@@ -121,13 +135,14 @@ private:
     static void *do_realloc(void *ptr, size_t old_size, size_t new_size, void *user_data)
     {
         auto &self = context_from_user_data(user_data);
-        void *const new_ptr = self._memory_resource.allocate(size);
-        // the `std::pmr::memory_resource` interface does not support the `realloc`
-        // operation natively; instead, we have to rely on the user knowing the
-        // previous allocation size to be able to translate `realloc` into
+        void *const new_ptr = self._allocator.allocate(size);
+        // if the `my_alloctor` interface supports a `realloc` method natively,
+        // we could simply call it here;
+        // instead, for the purpose of this example, we have to rely on the size
+        // of the previous allocation to be able to translate `realloc` into
         // `allocate` - `memcpy` - `deallocate`:
         std::memcpy(new_ptr, ptr, old_size);
-        self._memory_resource.deallocate(ptr);
+        self._allocator.deallocate(ptr);
         return new_ptr;
     }
 
@@ -138,11 +153,11 @@ private:
             return;
         }
         auto &self = context_from_user_data(user_data);
-        self._memory_resource.deallocate(ptr);
+        self._allocator.deallocate(ptr);
     }
 
 private:
-    std::pmr::memory_resource& _memory_resource;
+    my_allocator &_allocator;
     MIR_alloc _mir_alloc;
     MIR_context_t _mir_context;
 };

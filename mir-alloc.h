@@ -14,7 +14,7 @@ extern "C" {
 typedef struct MIR_alloc {
   void *(*malloc) (size_t, void *);
   void *(*calloc) (size_t, size_t, void *);
-  void *(*realloc) (void *, size_t, void *);
+  void *(*realloc) (void *, size_t, size_t, void *);
   void (*free) (void *, void *);
   void *user_data;
 } *MIR_alloc_t;
@@ -29,9 +29,9 @@ static inline void *MIR_calloc (MIR_alloc_t alloc, size_t num, size_t size) {
   return alloc->calloc (num, size, alloc->user_data);
 }
 
-static inline void *MIR_realloc (MIR_alloc_t alloc, void *ptr, size_t size) {
+static inline void *MIR_realloc (MIR_alloc_t alloc, void *ptr, size_t old_size, size_t new_size) {
   assert (alloc != NULL);
-  return alloc->realloc (ptr, size, alloc->user_data);
+  return alloc->realloc (ptr, old_size, new_size, alloc->user_data);
 }
 
 static inline void MIR_free (MIR_alloc_t alloc, void *ptr) {
